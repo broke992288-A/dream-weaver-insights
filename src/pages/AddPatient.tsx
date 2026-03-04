@@ -12,6 +12,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { DateInputSeparate } from "@/components/DateInputSeparate";
 
 type OrganType = "liver" | "kidney";
 
@@ -148,7 +149,7 @@ export default function AddPatient() {
             <CardHeader><CardTitle className="text-lg">{t("add.patientInfo")}</CardTitle></CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2"><Label>{t("add.fullName")} *</Label><Input value={form.full_name} onChange={(e) => set("full_name", e.target.value)} required /></div>
-              <div className="space-y-2"><Label>{t("add.dob")} *</Label><Input type="date" value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} required /></div>
+              <div className="space-y-2"><Label>{t("add.dob")} *</Label><DateInputSeparate value={form.date_of_birth} onChange={(v) => set("date_of_birth", v)} yearRange={[1940, new Date().getFullYear()]} /></div>
               <div className="space-y-2">
                 <Label>{t("add.gender")} *</Label>
                 <Select value={form.gender} onValueChange={(v) => set("gender", v)}>
@@ -167,7 +168,7 @@ export default function AddPatient() {
             <CardHeader><CardTitle className="text-lg">{t("add.transplantDetails")}</CardTitle></CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2"><Label>{t("add.transplantNumber")} *</Label><Input type="number" min={1} value={form.transplant_number} onChange={(e) => set("transplant_number", e.target.value)} required /></div>
-              <div className="space-y-2"><Label>{t("add.transplantDate")} *</Label><Input type="date" value={form.transplant_date} onChange={(e) => set("transplant_date", e.target.value)} required /></div>
+              <div className="space-y-2"><Label>{t("add.transplantDate")} *</Label><DateInputSeparate value={form.transplant_date} onChange={(v) => set("transplant_date", v)} yearRange={[1990, new Date().getFullYear()]} /></div>
               {organ === "liver" && (
                 <div className="space-y-2">
                   <Label>{t("add.rejectionType")}</Label>
@@ -187,7 +188,7 @@ export default function AddPatient() {
                     </RadioGroup>
                   </div>
                   {form.dialysis_history === "yes" && (
-                    <div className="space-y-2"><Label>{t("add.returnDialysisDate")}</Label><Input type="date" value={form.return_dialysis_date} onChange={(e) => set("return_dialysis_date", e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t("add.returnDialysisDate")}</Label><DateInputSeparate value={form.return_dialysis_date} onChange={(v) => set("return_dialysis_date", v)} yearRange={[2000, new Date().getFullYear()]} /></div>
                   )}
                 </>
               )}
