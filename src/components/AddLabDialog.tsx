@@ -25,9 +25,7 @@ export default function AddLabDialog({ patientId, organType, onLabAdded }: AddLa
     e.preventDefault();
     setSaving(true);
     try {
-      const { data: episode, error: epErr } = await supabase.from("transplant_episodes").select("id").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(1).single();
-      if (epErr) throw epErr;
-      const labData: any = { patient_id: patientId, episode_id: episode.id };
+      const labData: any = { patient_id: patientId };
       if (organType === "liver") {
         labData.tacrolimus_level = parseFloat(form.tacrolimus_level) || null;
         labData.alt = parseFloat(form.alt) || null;
@@ -42,7 +40,7 @@ export default function AddLabDialog({ patientId, organType, onLabAdded }: AddLa
       }
       const { error } = await supabase.from("lab_results").insert(labData);
       if (error) throw error;
-      await supabase.from("timeline_events").insert({ patient_id: patientId, event_type: "lab_added", description: t("detail.labAddedEvent") });
+      await supabase.from("patient_events").insert({ patient_id: patientId, event_type: "lab_added", description: t("detail.labAddedEvent") });
       toast({ title: t("detail.labAdded") });
       setForm({ tacrolimus_level: "", alt: "", ast: "", total_bilirubin: "", direct_bilirubin: "", creatinine: "", egfr: "", proteinuria: "", potassium: "" });
       setOpen(false);

@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Heart, ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
 type OrganType = "liver" | "kidney";
 
@@ -46,9 +47,9 @@ export default function AddPatient() {
   const { t } = useLanguage();
 
   const [form, setForm] = useState<Record<string, string>>({
-    full_name: "", birth_date: "", gender: "male", transplant_number: "1", transplant_date: "",
+    full_name: "", date_of_birth: "", gender: "male", transplant_number: "1", transplant_date: "",
     rejection_type: "", tacrolimus_level: "", alt: "", ast: "", total_bilirubin: "", direct_bilirubin: "",
-    dialysis_history: "no", return_to_dialysis_date: "", creatinine: "", egfr: "", proteinuria: "",
+    dialysis_history: "no", return_dialysis_date: "", creatinine: "", egfr: "", proteinuria: "",
     potassium: "", biopsy_result: "",
   });
 
@@ -62,41 +63,40 @@ export default function AddPatient() {
     try {
       const riskLevel = calculateRisk(organ, form);
       const { data: patient, error: pErr } = await supabase.from("patients").insert({
-        full_name: form.full_name, birth_date: form.birth_date, gender: form.gender,
+        full_name: form.full_name, date_of_birth: form.date_of_birth || null, gender: form.gender,
         organ_type: organ, risk_level: riskLevel, assigned_doctor_id: user.id,
+        transplant_number: parseInt(form.transplant_number) || 1,
+        transplant_date: form.transplant_date || null,
+        rejection_type: organ === "liver" ? (form.rejection_type || null) : null,
+        dialysis_history: organ === "kidney" ? form.dialysis_history === "yes" : false,
+        return_dialysis_date: organ === "kidney" && form.dialysis_history === "yes" && form.return_dialysis_date ? form.return_dialysis_date : null,
+        biopsy_result: form.biopsy_result || null,
       }).select("id").single();
       if (pErr) throw pErr;
 
-      const episodeData: any = {
-        patient_id: patient.id, organ_type: organ, transplant_number: parseInt(form.transplant_number),
-        transplant_date: form.transplant_date, biopsy_result: form.biopsy_result || null,
-      };
-      if (organ === "liver") { episodeData.rejection_type = form.rejection_type || null; }
-      else { episodeData.dialysis_history = form.dialysis_history === "yes"; episodeData.return_to_dialysis_date = form.dialysis_history === "yes" && form.return_to_dialysis_date ? form.return_to_dialysis_date : null; }
-
-      const { data: episode, error: eErr } = await supabase.from("transplant_episodes").insert(episodeData).select("id").single();
-      if (eErr) throw eErr;
-
-      const labData: any = { patient_id: patient.id, episode_id: episode.id };
+      const labData: any = { patient_id: patient.id };
       if (organ === "liver") {
-        labData.tacrolimus_level = parseFloat(form.tacrolimus_level) || null; labData.alt = parseFloat(form.alt) || null;
-        labData.ast = parseFloat(form.ast) || null; labData.total_bilirubin = parseFloat(form.total_bilirubin) || null;
+        labData.tacrolimus_level = parseFloat(form.tacrolimus_level) || null;
+        labData.alt = parseFloat(form.alt) || null;
+        labData.ast = parseFloat(form.ast) || null;
+        labData.total_bilirubin = parseFloat(form.total_bilirubin) || null;
         labData.direct_bilirubin = parseFloat(form.direct_bilirubin) || null;
       } else {
-        labData.creatinine = parseFloat(form.creatinine) || null; labData.egfr = parseFloat(form.egfr) || null;
-        labData.proteinuria = parseFloat(form.proteinuria) || null; labData.potassium = parseFloat(form.potassium) || null;
+        labData.creatinine = parseFloat(form.creatinine) || null;
+        labData.egfr = parseFloat(form.egfr) || null;
+        labData.proteinuria = parseFloat(form.proteinuria) || null;
+        labData.potassium = parseFloat(form.potassium) || null;
       }
-      const { error: lErr } = await supabase.from("lab_results").insert(labData);
-      if (lErr) throw lErr;
+      await supabase.from("lab_results").insert(labData);
 
       const txLabel = organ === "liver" ? "Liver" : "Kidney";
-      const events: { patient_id: string; event_type: string; description: string }[] = [
-        { patient_id: patient.id, event_type: "transplant_added", description: `${txLabel} Tx #${form.transplant_number} added` },
+      const events: { patient_id: string; event_type: string; description: string; created_by: string }[] = [
+        { patient_id: patient.id, event_type: "transplant_added", description: `${txLabel} Tx #${form.transplant_number} added`, created_by: user.id },
       ];
       if (organ === "kidney" && form.dialysis_history === "yes") {
-        events.push({ patient_id: patient.id, event_type: "dialysis_recorded", description: "Return to dialysis recorded" });
+        events.push({ patient_id: patient.id, event_type: "dialysis_recorded", description: "Return to dialysis recorded", created_by: user.id });
       }
-      await supabase.from("timeline_events").insert(events);
+      await supabase.from("patient_events").insert(events);
 
       toast({ title: t("add.patientAdded"), description: `${form.full_name} — Risk: ${riskLevel.toUpperCase()}` });
       navigate("/doctor-dashboard");
@@ -107,8 +107,8 @@ export default function AddPatient() {
 
   if (step === 1) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 px-4">
-        <div className="w-full max-w-2xl space-y-8">
+      <DashboardLayout>
+        <div className="max-w-2xl mx-auto space-y-8">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate("/doctor-dashboard")}><ArrowLeft className="h-5 w-5" /></Button>
             <div>
@@ -132,26 +132,23 @@ export default function AddPatient() {
             ))}
           </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-sm">
-        <div className="container flex h-16 items-center gap-3">
+    <DashboardLayout>
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
           <Button variant="ghost" size="icon" onClick={() => setStep(1)}><ArrowLeft className="h-5 w-5" /></Button>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary"><Heart className="h-5 w-5 text-primary-foreground" /></div>
           <span className="text-lg font-bold">{organ === "liver" ? t("add.addLiver") : t("add.addKidney")}</span>
         </div>
-      </header>
-      <main className="container max-w-2xl py-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           <Card>
             <CardHeader><CardTitle className="text-lg">{t("add.patientInfo")}</CardTitle></CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2"><Label>{t("add.fullName")} *</Label><Input value={form.full_name} onChange={(e) => set("full_name", e.target.value)} required /></div>
-              <div className="space-y-2"><Label>{t("add.dob")} *</Label><Input type="date" value={form.birth_date} onChange={(e) => set("birth_date", e.target.value)} required /></div>
+              <div className="space-y-2"><Label>{t("add.dob")} *</Label><Input type="date" value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} required /></div>
               <div className="space-y-2">
                 <Label>{t("add.gender")} *</Label>
                 <Select value={form.gender} onValueChange={(v) => set("gender", v)}>
@@ -190,7 +187,7 @@ export default function AddPatient() {
                     </RadioGroup>
                   </div>
                   {form.dialysis_history === "yes" && (
-                    <div className="space-y-2"><Label>{t("add.returnDialysisDate")}</Label><Input type="date" value={form.return_to_dialysis_date} onChange={(e) => set("return_to_dialysis_date", e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t("add.returnDialysisDate")}</Label><Input type="date" value={form.return_dialysis_date} onChange={(e) => set("return_dialysis_date", e.target.value)} /></div>
                   )}
                 </>
               )}
@@ -225,7 +222,7 @@ export default function AddPatient() {
             {t("add.save")}
           </Button>
         </form>
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

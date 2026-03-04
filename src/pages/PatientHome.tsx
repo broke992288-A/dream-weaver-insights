@@ -3,15 +3,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Heart, LogOut, Clock, FlaskConical } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Clock, FlaskConical } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
-import LanguageSelector from "@/components/LanguageSelector";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
 export default function PatientHome() {
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const { t } = useLanguage();
   const [patient, setPatient] = useState<any>(null);
   const [timeline, setTimeline] = useState<any[]>([]);
@@ -21,12 +18,12 @@ export default function PatientHome() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data: pts } = await supabase.from("patients").select("*").eq("linked_patient_user_id", user.id).limit(1);
+      const { data: pts } = await supabase.from("patients").select("*").eq("linked_user_id", user.id).limit(1);
       if (pts && pts.length > 0) {
         const pt = pts[0];
         setPatient(pt);
         const [{ data: tl }, { data: lb }] = await Promise.all([
-          supabase.from("timeline_events").select("*").eq("patient_id", pt.id).order("created_at", { ascending: false }).limit(10),
+          supabase.from("patient_events").select("*").eq("patient_id", pt.id).order("created_at", { ascending: false }).limit(10),
           supabase.from("lab_results").select("*").eq("patient_id", pt.id).order("recorded_at", { ascending: false }).limit(1),
         ]);
         setTimeline(tl ?? []);
@@ -41,21 +38,8 @@ export default function PatientHome() {
     level === "high" ? "bg-destructive text-destructive-foreground" : level === "medium" ? "bg-warning text-warning-foreground" : "bg-success text-success-foreground";
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-sm">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary"><Heart className="h-5 w-5 text-primary-foreground" /></div>
-            <span className="text-lg font-bold">{t("app.name")}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <LanguageSelector />
-            <Button variant="ghost" size="icon" onClick={() => { signOut(); navigate("/login"); }}><LogOut className="h-5 w-5" /></Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="container max-w-2xl py-8 space-y-6">
+    <DashboardLayout>
+      <div className="max-w-2xl mx-auto space-y-6">
         {loading ? (
           <p className="text-muted-foreground text-center">{t("home.loading")}</p>
         ) : !patient ? (
@@ -120,8 +104,8 @@ export default function PatientHome() {
             )}
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
 
