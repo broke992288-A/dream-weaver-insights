@@ -6,16 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Heart, Users, AlertTriangle, Activity, Plus, LogOut, ShieldAlert } from "lucide-react";
+import { Users, AlertTriangle, Activity, Plus, ShieldAlert } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useLanguage } from "@/hooks/useLanguage";
-import LanguageSelector from "@/components/LanguageSelector";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
 interface PatientRow { id: string; full_name: string; organ_type: string; risk_level: string; created_at: string; }
 interface LabRow { patient_id: string; tacrolimus_level: number | null; creatinine: number | null; }
 
 export default function DoctorDashboard() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [patients, setPatients] = useState<PatientRow[]>([]);
@@ -60,22 +60,12 @@ export default function DoctorDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur-sm">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary"><Heart className="h-5 w-5 text-primary-foreground" /></div>
-            <span className="text-lg font-bold">{t("app.name")}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <LanguageSelector />
-            <Button asChild><Link to="/add-patient"><Plus className="mr-1 h-4 w-4" /> {t("nav.addPatient")}</Link></Button>
-            <Button variant="ghost" size="icon" onClick={() => { signOut(); navigate("/login"); }}><LogOut className="h-5 w-5" /></Button>
-          </div>
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div><h1 className="text-2xl font-bold">{t("dashboard.title")}</h1><p className="text-muted-foreground">{t("dashboard.subtitle")}</p></div>
+          <Button asChild><Link to="/add-patient"><Plus className="mr-1 h-4 w-4" /> {t("nav.addPatient")}</Link></Button>
         </div>
-      </header>
-      <main className="container py-8 space-y-8">
-        <div><h1 className="text-2xl font-bold">{t("dashboard.title")}</h1><p className="text-muted-foreground">{t("dashboard.subtitle")}</p></div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {summaryCards.map(({ label, value, icon: Icon, color }) => (
             <Card key={label}><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle><Icon className={`h-5 w-5 ${color}`} /></CardHeader><CardContent><div className="text-3xl font-bold">{loading ? "—" : value}</div></CardContent></Card>
@@ -104,7 +94,7 @@ export default function DoctorDashboard() {
             ))}</TableBody></Table>
           )}
         </CardContent></Card>
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
