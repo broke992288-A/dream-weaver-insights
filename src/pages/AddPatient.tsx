@@ -188,7 +188,7 @@ export default function AddPatient() {
                     </RadioGroup>
                   </div>
                   {form.dialysis_history === "yes" && (
-                    <div className="space-y-2"><Label>{t("add.returnDialysisDate")}</Label><Input type="date" value={form.return_dialysis_date} onChange={(e) => set("return_dialysis_date", e.target.value)} /></div>
+                    <div className="space-y-2"><Label>{t("add.returnDialysisDate")}</Label><DateInputSeparate value={form.return_dialysis_date} onChange={(v) => set("return_dialysis_date", v)} yearRange={[2000, new Date().getFullYear()]} /></div>
                   )}
                 </>
               )}
