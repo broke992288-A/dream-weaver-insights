@@ -12,6 +12,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { DateInputSeparate } from "@/components/DateInputSeparate";
 
 type OrganType = "liver" | "kidney";
 
