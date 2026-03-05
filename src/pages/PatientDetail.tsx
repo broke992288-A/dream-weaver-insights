@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Clock, FlaskConical, AlertTriangle, Shield } from "lucide-react";
+import { ArrowLeft, Clock, FlaskConical, AlertTriangle, Shield, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import AddLabDialog from "@/components/AddLabDialog";
 import LabHistoryTable from "@/components/LabHistoryTable";
 import { useToast } from "@/hooks/use-toast";
@@ -69,10 +70,33 @@ export default function PatientDetail() {
   return (
     <DashboardLayout>
       <div className="max-w-3xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/doctor-dashboard")}><ArrowLeft className="h-5 w-5" /></Button>
-          <span className="text-lg font-bold">{patient.full_name}</span>
-          <Badge className={riskColor(patient.risk_level)}>{patient.risk_level.toUpperCase()}</Badge>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/patients")}><ArrowLeft className="h-5 w-5" /></Button>
+            <span className="text-lg font-bold">{patient.full_name}</span>
+            <Badge className={riskColor(patient.risk_level)}>{patient.risk_level.toUpperCase()}</Badge>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-1" />{t("common.delete") || "Ўчириш"}</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("detail.confirmDelete") || "Беморни ўчириш"}</AlertDialogTitle>
+                <AlertDialogDescription>{t("detail.confirmDeleteDesc") || "Ҳақиқатан ҳам бу беморни ўчирмоқчимисиз? Бу амални қайтариб бўлмайди."}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("common.cancel") || "Бекор қилиш"}</AlertDialogCancel>
+                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                  await supabase.from("lab_results").delete().eq("patient_id", patient.id);
+                  await supabase.from("patient_events").delete().eq("patient_id", patient.id);
+                  await supabase.from("patients").delete().eq("id", patient.id);
+                  toast({ title: t("detail.patientDeleted") || "Бемор ўчирилди" });
+                  navigate("/patients");
+                }}>{t("common.delete") || "Ўчириш"}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         {patient.risk_level === "high" && (
