@@ -11,6 +11,7 @@ import { ArrowLeft, Clock, FlaskConical, AlertTriangle, Shield, Trash2 } from "l
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import AddLabDialog from "@/components/AddLabDialog";
 import LabHistoryTable from "@/components/LabHistoryTable";
+import EditPatientDialog from "@/components/EditPatientDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -76,7 +77,9 @@ export default function PatientDetail() {
             <span className="text-lg font-bold">{patient.full_name}</span>
             <Badge className={riskColor(patient.risk_level)}>{patient.risk_level.toUpperCase()}</Badge>
           </div>
-          <AlertDialog>
+          <div className="flex items-center gap-2">
+            <EditPatientDialog patient={patient} onUpdated={loadData} />
+            <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-1" />{t("common.delete") || "Ўчириш"}</Button>
             </AlertDialogTrigger>
@@ -97,6 +100,7 @@ export default function PatientDetail() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          </div>
         </div>
 
         {patient.risk_level === "high" && (
