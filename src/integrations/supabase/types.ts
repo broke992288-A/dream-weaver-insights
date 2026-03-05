@@ -198,6 +198,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      register_patient_self: {
+        Args: {
+          _date_of_birth?: string
+          _full_name: string
+          _gender?: string
+          _phone?: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "doctor" | "patient" | "support"

@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import type { AppRole } from "@/types/roles";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function SelectRole() {
   const { user, role, setUserRole, loading: authLoading } = useAuth();
@@ -23,7 +24,22 @@ export default function SelectRole() {
 
   const handleSelect = async (selectedRole: AppRole) => {
     setSelecting(selectedRole);
-    try { await setUserRole(selectedRole); navigate(getRoleRedirect(selectedRole), { replace: true }); }
+    try {
+      await setUserRole(selectedRole);
+
+      // If patient, create/link patient record using the DB function
+      if (selectedRole === "patient") {
+        const meta = user.user_metadata || {};
+        await supabase.rpc("register_patient_self", {
+          _full_name: meta.full_name || user.email || "",
+          _phone: meta.phone || null,
+          _date_of_birth: null,
+          _gender: null,
+        });
+      }
+
+      navigate(getRoleRedirect(selectedRole), { replace: true });
+    }
     catch (err: any) { toast({ title: t("common.error"), description: err.message, variant: "destructive" }); setSelecting(null); }
   };
 
