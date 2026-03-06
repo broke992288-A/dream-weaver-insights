@@ -6,10 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Pencil } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DateInputSeparate } from "@/components/features/DateInputSeparate";
+import { updatePatient } from "@/services/patientService";
 
 interface EditPatientDialogProps {
   patient: any;
@@ -40,28 +40,26 @@ export default function EditPatientDialog({ patient, onUpdated }: EditPatientDia
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("patients").update({
-      full_name: fullName.trim(),
-      gender: gender || null,
-      date_of_birth: dateOfBirth || null,
-      phone: phone || null,
-      organ_type: organType,
-      transplant_date: transplantDate || null,
-      transplant_number: transplantNumber ? parseInt(transplantNumber) : null,
-      dialysis_history: dialysisHistory,
-      return_dialysis_date: returnDialysisDate || null,
-      rejection_type: rejectionType || null,
-      biopsy_result: biopsyResult || null,
-    }).eq("id", patient.id);
-
-    setSaving(false);
-    if (error) {
-      toast({ title: "Хатолик юз берди", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      await updatePatient(patient.id, {
+        full_name: fullName.trim(),
+        gender: gender || null,
+        date_of_birth: dateOfBirth || null,
+        phone: phone || null,
+        organ_type: organType,
+        transplant_date: transplantDate || null,
+        transplant_number: transplantNumber ? parseInt(transplantNumber) : null,
+        dialysis_history: dialysisHistory,
+        return_dialysis_date: returnDialysisDate || null,
+        rejection_type: rejectionType || null,
+        biopsy_result: biopsyResult || null,
+      });
       toast({ title: t("detail.patientUpdated") || "Бемор маълумотлари сақланди" });
       setOpen(false);
       onUpdated();
-    }
+    } catch (err: any) {
+      toast({ title: "Хатолик юз берди", description: err.message, variant: "destructive" });
+    } finally { setSaving(false); }
   };
 
   return (
