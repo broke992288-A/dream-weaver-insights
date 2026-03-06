@@ -9,7 +9,7 @@ import { Heart, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import LanguageSelector from "@/components/features/LanguageSelector";
-import { supabase } from "@/integrations/supabase/client";
+import { resetPasswordForEmail } from "@/services/authService";
 
 export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -29,8 +29,7 @@ export default function Login() {
     setLoading(true);
     try {
       if (isForgot) {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
-        if (error) throw error;
+        await resetPasswordForEmail(email);
         toast({ title: t("login.resetSent"), description: t("login.resetSentDesc") });
         setIsForgot(false);
       } else if (isSignUp) {

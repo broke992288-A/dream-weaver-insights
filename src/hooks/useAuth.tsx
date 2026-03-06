@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "@/types/roles";
+import { fetchUserRoles, upsertUserRole, signInWithPassword, signUpWithEmail, signOutUser } from "@/services/authService";
 
 interface AuthContextType {
   user: User | null;
@@ -25,11 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const ROLE_PRIORITY: AppRole[] = ["admin", "doctor", "support", "patient"];
 
   const fetchRole = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    if (data && data.length > 0) {
+    const data = await fetchUserRoles(userId);
+    if (data.length > 0) {
       const roles = data.map((d) => d.role as AppRole);
       const best = ROLE_PRIORITY.find((r) => roles.includes(r)) ?? roles[0];
       setRole(best);
@@ -65,30 +63,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    await signInWithPassword(email, password);
   };
 
   const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
-    const { error } = await supabase.auth.signUp({
-      email, password,
-      options: { emailRedirectTo: window.location.origin, data: { full_name: fullName, phone: phone || "" } },
-    });
-    if (error) throw error;
+    await signUpWithEmail(email, password, fullName, phone);
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await signOutUser();
     setRole(null);
   };
 
   const setUserRole = async (newRole: AppRole) => {
     if (!user) throw new Error("Not authenticated");
-    const { error } = await supabase.from("user_roles").upsert(
-      { user_id: user.id, role: newRole },
-      { onConflict: "user_id,role" }
-    );
-    if (error) throw error;
+    await upsertUserRole(user.id, newRole);
     setRole(newRole);
   };
 

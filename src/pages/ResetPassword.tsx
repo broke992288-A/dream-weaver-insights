@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { updateUserPassword } from "@/services/authService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,8 +23,7 @@ export default function ResetPassword() {
     if (password !== confirmPassword) { toast({ title: t("common.error"), description: t("login.passwordMismatch"), variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      await updateUserPassword(password);
       toast({ title: t("login.passwordUpdated"), description: t("login.passwordUpdatedDesc") });
       navigate("/login");
     } catch (err: any) { toast({ title: t("common.error"), description: err.message, variant: "destructive" }); }

@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import type { AppRole } from "@/types/roles";
-import { supabase } from "@/integrations/supabase/client";
+import { registerPatientSelf } from "@/services/authService";
 
 export default function SelectRole() {
   const { user, role, setUserRole, loading: authLoading } = useAuth();
@@ -30,11 +30,9 @@ export default function SelectRole() {
       // If patient, create/link patient record using the DB function
       if (selectedRole === "patient") {
         const meta = user.user_metadata || {};
-        await supabase.rpc("register_patient_self", {
-          _full_name: meta.full_name || user.email || "",
-          _phone: meta.phone || null,
-          _date_of_birth: null,
-          _gender: null,
+        await registerPatientSelf({
+          fullName: meta.full_name || user.email || "",
+          phone: meta.phone || null,
         });
       }
 
