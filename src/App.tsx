@@ -1,11 +1,13 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useRealtimeInvalidation } from "@/hooks/useRealtimeInvalidation";
 import { LanguageProvider } from "@/hooks/useLanguage";
+import { ErrorBoundary } from "@/components/features/ErrorBoundary";
+import { handleError } from "@/utils/errorHandler";
 import Login from "./pages/Login";
 import SelectRole from "./pages/SelectRole";
 import DoctorDashboard from "./pages/DoctorDashboard";
@@ -22,10 +24,21 @@ import Patients from "./pages/Patients";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      if (query.meta?.skipGlobalError) return;
+      handleError(error, `Query [${query.queryKey[0]}]`);
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      handleError(error, "Mutation");
+    },
+  }),
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 2,       // 2 min before refetch
-      gcTime: 1000 * 60 * 10,          // 10 min garbage collection
+      staleTime: 1000 * 60 * 2,
+      gcTime: 1000 * 60 * 10,
       refetchOnWindowFocus: true,
       retry: 1,
     },
@@ -59,6 +72,7 @@ function RealtimeProvider({ children }: { children: React.ReactNode }) {
 }
 
 const App = () => (
+  <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <LanguageProvider>
@@ -90,6 +104,7 @@ const App = () => (
       </LanguageProvider>
     </TooltipProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
