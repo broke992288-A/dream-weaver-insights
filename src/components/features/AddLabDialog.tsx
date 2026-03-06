@@ -8,6 +8,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { insertLabResult } from "@/services/labService";
 import { insertEvent } from "@/services/eventService";
+import { computeRiskScore, insertRiskSnapshot } from "@/services/riskSnapshotService";
+import { insertPatientAlert } from "@/services/patientAlertService";
+import { updatePatient } from "@/services/patientService";
 
 interface AddLabDialogProps { patientId: string; organType: string; onLabAdded: () => void; }
 
