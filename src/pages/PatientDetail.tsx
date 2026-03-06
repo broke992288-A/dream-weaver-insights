@@ -35,6 +35,11 @@ export default function PatientDetail() {
   const latestRisk = riskSnapshots[0] ?? null;
   const prevRisk = riskSnapshots[1] ?? null;
 
+  // Audit: doctor viewing patient
+  useState(() => {
+    if (id) logAudit({ action: "doctor_view_patient", entityType: "patient", entityId: id });
+  });
+
   const [overrideLevel, setOverrideLevel] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [overriding, setOverriding] = useState(false);

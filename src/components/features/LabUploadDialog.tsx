@@ -126,6 +126,7 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
       }
       await insertLabResult(labData as Record<string, any> & { patient_id: string });
       await insertEvent({ patient_id: patientId, event_type: "lab_uploaded", description: "Lab report uploaded via OCR" });
+      logAudit({ action: "lab_upload", entityType: "patient", entityId: patientId, metadata: { filledCount } });
       toast({ title: "Lab results saved successfully" });
       reset();
       setOpen(false);
