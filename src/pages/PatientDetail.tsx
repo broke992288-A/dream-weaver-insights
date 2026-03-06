@@ -102,6 +102,9 @@ export default function PatientDetail() {
           </div>
         )}
 
+        <RiskScoreCard snapshot={latestRisk} prevSnapshot={prevRisk} />
+        <PatientAlertsCard patientId={patient.id} />
+
         <Card>
           <CardHeader><CardTitle className="text-lg">{t("detail.patientInfo")}</CardTitle></CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
