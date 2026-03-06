@@ -11,10 +11,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import AddLabDialog from "@/components/features/AddLabDialog";
 import LabHistoryTable from "@/components/features/LabHistoryTable";
 import EditPatientDialog from "@/components/features/EditPatientDialog";
+import RiskScoreCard from "@/components/features/RiskScoreCard";
+import PatientAlertsCard from "@/components/features/PatientAlertsCard";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { usePatientDetail } from "@/hooks/usePatientDetail";
+import { useRiskSnapshots } from "@/hooks/useRiskSnapshots";
 import { updatePatient, deletePatient } from "@/services/patientService";
 import { insertEvent } from "@/services/eventService";
 import { riskColorClass } from "@/utils/risk";
@@ -27,6 +30,9 @@ export default function PatientDetail() {
   const { t } = useLanguage();
 
   const { patient, labs: allLabs, latestLab, events: timeline, loading, invalidateAll } = usePatientDetail(id);
+  const { data: riskSnapshots = [] } = useRiskSnapshots(id);
+  const latestRisk = riskSnapshots[0] ?? null;
+  const prevRisk = riskSnapshots[1] ?? null;
 
   const [overrideLevel, setOverrideLevel] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
@@ -96,6 +102,9 @@ export default function PatientDetail() {
           </div>
         )}
 
+        <RiskScoreCard snapshot={latestRisk} prevSnapshot={prevRisk} />
+        <PatientAlertsCard patientId={patient.id} />
+
         <Card>
           <CardHeader><CardTitle className="text-lg">{t("detail.patientInfo")}</CardTitle></CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -112,7 +121,7 @@ export default function PatientDetail() {
               <FlaskConical className="h-5 w-5 text-primary" />
               <CardTitle className="text-lg">{t("detail.latestLabs")}</CardTitle>
             </div>
-            <AddLabDialog patientId={patient.id} organType={patient.organ_type} onLabAdded={invalidateAll} />
+            <AddLabDialog patientId={patient.id} organType={patient.organ_type} onLabAdded={invalidateAll} patientData={{ transplant_number: patient.transplant_number, dialysis_history: patient.dialysis_history }} />
           </CardHeader>
           <CardContent>
             {latestLab ? (

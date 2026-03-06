@@ -70,6 +70,57 @@ export type Database = {
           },
         ]
       }
+      patient_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string | null
+          patient_id: string
+          risk_snapshot_id: string | null
+          severity: string
+          title: string
+        }
+        Insert: {
+          alert_type?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          patient_id: string
+          risk_snapshot_id?: string | null
+          severity?: string
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          patient_id?: string
+          risk_snapshot_id?: string | null
+          severity?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_alerts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_alerts_risk_snapshot_id_fkey"
+            columns: ["risk_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "risk_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_events: {
         Row: {
           created_at: string
@@ -164,6 +215,66 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      risk_snapshots: {
+        Row: {
+          alt: number | null
+          ast: number | null
+          created_at: string
+          creatinine: number | null
+          details: Json | null
+          id: string
+          lab_result_id: string | null
+          patient_id: string
+          risk_level: string
+          score: number
+          tacrolimus_level: number | null
+          total_bilirubin: number | null
+        }
+        Insert: {
+          alt?: number | null
+          ast?: number | null
+          created_at?: string
+          creatinine?: number | null
+          details?: Json | null
+          id?: string
+          lab_result_id?: string | null
+          patient_id: string
+          risk_level?: string
+          score?: number
+          tacrolimus_level?: number | null
+          total_bilirubin?: number | null
+        }
+        Update: {
+          alt?: number | null
+          ast?: number | null
+          created_at?: string
+          creatinine?: number | null
+          details?: Json | null
+          id?: string
+          lab_result_id?: string | null
+          patient_id?: string
+          risk_level?: string
+          score?: number
+          tacrolimus_level?: number | null
+          total_bilirubin?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "risk_snapshots_lab_result_id_fkey"
+            columns: ["lab_result_id"]
+            isOneToOne: false
+            referencedRelation: "lab_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "risk_snapshots_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

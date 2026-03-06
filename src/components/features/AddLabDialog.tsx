@@ -8,10 +8,18 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { insertLabResult } from "@/services/labService";
 import { insertEvent } from "@/services/eventService";
+import { computeRiskScore, insertRiskSnapshot } from "@/services/riskSnapshotService";
+import { insertPatientAlert } from "@/services/patientAlertService";
+import { updatePatient } from "@/services/patientService";
 
-interface AddLabDialogProps { patientId: string; organType: string; onLabAdded: () => void; }
+interface AddLabDialogProps {
+  patientId: string;
+  organType: string;
+  onLabAdded: () => void;
+  patientData?: { transplant_number?: number | null; dialysis_history?: boolean | null };
+}
 
-export default function AddLabDialog({ patientId, organType, onLabAdded }: AddLabDialogProps) {
+export default function AddLabDialog({ patientId, organType, onLabAdded, patientData }: AddLabDialogProps) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -40,6 +48,48 @@ export default function AddLabDialog({ patientId, organType, onLabAdded }: AddLa
         labData.potassium = parseFloat(form.potassium) || null;
       }
       await insertLabResult(labData);
+
+      // Compute risk score from fresh lab data
+      try {
+        const fakeLabResult = { ...labData, id: "", recorded_at: new Date().toISOString(), created_at: new Date().toISOString() } as any;
+        const { score, level, flags } = computeRiskScore(organType, fakeLabResult, patientData ?? {});
+        const snapshot = await insertRiskSnapshot({
+          patient_id: patientId,
+          score,
+          risk_level: level,
+          creatinine: labData.creatinine ?? null,
+          alt: labData.alt ?? null,
+          ast: labData.ast ?? null,
+          total_bilirubin: labData.total_bilirubin ?? null,
+          tacrolimus_level: labData.tacrolimus_level ?? null,
+          details: { flags },
+        });
+
+        // Update patient risk level
+        await updatePatient(patientId, { risk_level: level });
+
+        // Create alert if risk is high or medium
+        if (level === "high") {
+          await insertPatientAlert({
+            patient_id: patientId,
+            risk_snapshot_id: snapshot?.id ?? null,
+            severity: "critical",
+            title: `Юқори хавф аниқланди (балл: ${score})`,
+            message: flags.join("; "),
+          });
+        } else if (level === "medium") {
+          await insertPatientAlert({
+            patient_id: patientId,
+            risk_snapshot_id: snapshot?.id ?? null,
+            severity: "warning",
+            title: `Ўртача хавф аниқланди (балл: ${score})`,
+            message: flags.join("; "),
+          });
+        }
+      } catch (riskErr) {
+        console.error("Risk calculation error:", riskErr);
+      }
+
       await insertEvent({ patient_id: patientId, event_type: "lab_added", description: t("detail.labAddedEvent") });
       toast({ title: t("detail.labAdded") });
       setForm({ tacrolimus_level: "", alt: "", ast: "", total_bilirubin: "", direct_bilirubin: "", creatinine: "", egfr: "", proteinuria: "", potassium: "" });
