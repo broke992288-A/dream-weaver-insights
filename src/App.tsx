@@ -14,6 +14,7 @@ import DoctorDashboard from "./pages/DoctorDashboard";
 import AddPatient from "./pages/AddPatient";
 import PatientDetail from "./pages/PatientDetail";
 import PatientHome from "./pages/PatientHome";
+import PatientProfile from "./pages/PatientProfile";
 import ResetPassword from "./pages/ResetPassword";
 import Compare from "./pages/Compare";
 import Analytics from "./pages/Analytics";
