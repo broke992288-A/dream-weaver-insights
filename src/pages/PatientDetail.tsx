@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,12 +8,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Clock, FlaskConical, AlertTriangle, Shield, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import AddLabDialog from "@/components/AddLabDialog";
-import LabHistoryTable from "@/components/LabHistoryTable";
-import EditPatientDialog from "@/components/EditPatientDialog";
+import AddLabDialog from "@/components/features/AddLabDialog";
+import LabHistoryTable from "@/components/features/LabHistoryTable";
+import EditPatientDialog from "@/components/features/EditPatientDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { usePatientDetail } from "@/hooks/usePatientDetail";
+import { updatePatient, deletePatient } from "@/services/patientService";
+import { insertEvent } from "@/services/eventService";
+import { riskColorClass } from "@/utils/risk";
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -23,30 +26,11 @@ export default function PatientDetail() {
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const [patient, setPatient] = useState<any>(null);
-  const [timeline, setTimeline] = useState<any[]>([]);
-  const [labs, setLabs] = useState<any>(null);
-  const [allLabs, setAllLabs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { patient, labs: allLabs, latestLab, events: timeline, loading, invalidateAll } = usePatientDetail(id);
+
   const [overrideLevel, setOverrideLevel] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [overriding, setOverriding] = useState(false);
-
-  const loadData = async () => {
-    if (!id) return;
-    const [{ data: pt }, { data: tl }, { data: lb }] = await Promise.all([
-      supabase.from("patients").select("*").eq("id", id).single(),
-      supabase.from("patient_events").select("*").eq("patient_id", id).order("created_at", { ascending: false }),
-      supabase.from("lab_results").select("*").eq("patient_id", id).order("recorded_at", { ascending: false }),
-    ]);
-    setPatient(pt);
-    setTimeline(tl ?? []);
-    setAllLabs(lb ?? []);
-    setLabs(lb?.[0] ?? null);
-    setLoading(false);
-  };
-
-  useEffect(() => { loadData(); }, [id]);
 
   const handleOverride = async () => {
     if (!user || !id || !overrideLevel || !overrideReason.trim()) {
@@ -54,16 +38,16 @@ export default function PatientDetail() {
       return;
     }
     setOverriding(true);
-    await supabase.from("patients").update({ risk_level: overrideLevel }).eq("id", id);
-    await supabase.from("patient_events").insert({ patient_id: id, event_type: "risk_override", description: `Risk overridden to ${overrideLevel}: ${overrideReason}`, created_by: user.id });
-    setPatient((prev: any) => ({ ...prev, risk_level: overrideLevel }));
-    setOverrideLevel(""); setOverrideReason(""); setOverriding(false);
-    toast({ title: t("detail.riskOverridden") });
-    loadData();
+    try {
+      await updatePatient(id, { risk_level: overrideLevel });
+      await insertEvent({ patient_id: id, event_type: "risk_override", description: `Risk overridden to ${overrideLevel}: ${overrideReason}`, created_by: user.id });
+      setOverrideLevel(""); setOverrideReason("");
+      toast({ title: t("detail.riskOverridden") });
+      invalidateAll();
+    } catch (err: any) {
+      toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+    } finally { setOverriding(false); }
   };
-
-  const riskColor = (level: string) =>
-    level === "high" ? "bg-destructive text-destructive-foreground" : level === "medium" ? "bg-warning text-warning-foreground" : "bg-success text-success-foreground";
 
   if (loading) return <DashboardLayout><div className="flex items-center justify-center py-20 text-muted-foreground">{t("common.loading")}</div></DashboardLayout>;
   if (!patient) return <DashboardLayout><div className="flex items-center justify-center py-20 text-muted-foreground">Patient not found</div></DashboardLayout>;
@@ -75,10 +59,10 @@ export default function PatientDetail() {
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate("/patients")}><ArrowLeft className="h-5 w-5" /></Button>
             <span className="text-lg font-bold">{patient.full_name}</span>
-            <Badge className={riskColor(patient.risk_level)}>{patient.risk_level.toUpperCase()}</Badge>
+            <Badge className={riskColorClass(patient.risk_level)}>{patient.risk_level.toUpperCase()}</Badge>
           </div>
           <div className="flex items-center gap-2">
-            <EditPatientDialog patient={patient} onUpdated={loadData} />
+            <EditPatientDialog patient={patient} onUpdated={invalidateAll} />
             <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-1" />{t("common.delete") || "Ўчириш"}</Button>
@@ -92,8 +76,7 @@ export default function PatientDetail() {
                 <AlertDialogCancel>{t("common.cancel") || "Бекор қилиш"}</AlertDialogCancel>
                 <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
                   try {
-                    const { error } = await supabase.from("patients").delete().eq("id", patient.id);
-                    if (error) throw error;
+                    await deletePatient(patient.id);
                     toast({ title: t("detail.patientDeleted") || "Бемор ўчирилди" });
                     navigate("/patients");
                   } catch (err: any) {
@@ -117,7 +100,7 @@ export default function PatientDetail() {
           <CardHeader><CardTitle className="text-lg">{t("detail.patientInfo")}</CardTitle></CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <InfoRow label={t("home.organ")} value={patient.organ_type} />
-            <InfoRow label={t("add.gender")} value={patient.gender} />
+            <InfoRow label={t("add.gender")} value={patient.gender ?? "—"} />
             <InfoRow label={t("detail.dob")} value={patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString() : "—"} />
             <InfoRow label={t("detail.added")} value={new Date(patient.created_at).toLocaleDateString()} />
           </CardContent>
@@ -129,25 +112,25 @@ export default function PatientDetail() {
               <FlaskConical className="h-5 w-5 text-primary" />
               <CardTitle className="text-lg">{t("detail.latestLabs")}</CardTitle>
             </div>
-            <AddLabDialog patientId={patient.id} organType={patient.organ_type} onLabAdded={loadData} />
+            <AddLabDialog patientId={patient.id} organType={patient.organ_type} onLabAdded={invalidateAll} />
           </CardHeader>
           <CardContent>
-            {labs ? (
+            {latestLab ? (
               <div className="grid gap-3 sm:grid-cols-3">
                 {patient.organ_type === "liver" ? (
                   <>
-                    <LabItem label={t("add.tacrolimus")} value={labs.tacrolimus_level} />
-                    <LabItem label={t("add.alt")} value={labs.alt} />
-                    <LabItem label={t("add.ast")} value={labs.ast} />
-                    <LabItem label={t("add.totalBilirubin")} value={labs.total_bilirubin} />
-                    <LabItem label={t("add.directBilirubin")} value={labs.direct_bilirubin} />
+                    <LabItem label={t("add.tacrolimus")} value={latestLab.tacrolimus_level} />
+                    <LabItem label={t("add.alt")} value={latestLab.alt} />
+                    <LabItem label={t("add.ast")} value={latestLab.ast} />
+                    <LabItem label={t("add.totalBilirubin")} value={latestLab.total_bilirubin} />
+                    <LabItem label={t("add.directBilirubin")} value={latestLab.direct_bilirubin} />
                   </>
                 ) : (
                   <>
-                    <LabItem label={t("add.creatinine")} value={labs.creatinine} />
-                    <LabItem label={t("add.egfr")} value={labs.egfr} />
-                    <LabItem label={t("add.proteinuria")} value={labs.proteinuria} />
-                    <LabItem label={t("add.potassium")} value={labs.potassium} />
+                    <LabItem label={t("add.creatinine")} value={latestLab.creatinine} />
+                    <LabItem label={t("add.egfr")} value={latestLab.egfr} />
+                    <LabItem label={t("add.proteinuria")} value={latestLab.proteinuria} />
+                    <LabItem label={t("add.potassium")} value={latestLab.potassium} />
                   </>
                 )}
               </div>

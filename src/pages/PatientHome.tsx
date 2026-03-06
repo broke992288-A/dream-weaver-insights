@@ -1,58 +1,21 @@
-import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, FlaskConical, TrendingUp, TrendingDown, Minus, Phone, Calendar, User } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { useLinkedPatient } from "@/hooks/usePatients";
+import { usePatientHomeLabs, usePatientHomeEvents } from "@/hooks/usePatientDetail";
+import { riskColorClass } from "@/utils/risk";
 
 export default function PatientHome() {
-  const { user } = useAuth();
   const { t } = useLanguage();
-  const [patient, setPatient] = useState<any>(null);
-  const [timeline, setTimeline] = useState<any[]>([]);
-  const [allLabs, setAllLabs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: patient, isLoading: loadingPatient } = useLinkedPatient();
+  const { data: allLabs = [] } = usePatientHomeLabs(patient?.id);
+  const { data: timeline = [] } = usePatientHomeEvents(patient?.id);
 
-  useEffect(() => {
-    if (!user) return;
-    const load = async () => {
-      const { data: pts } = await supabase.from("patients").select("*").eq("linked_user_id", user.id).limit(1);
-      if (pts && pts.length > 0) {
-        const pt = pts[0];
-        setPatient(pt);
-        const [{ data: tl }, { data: lb }] = await Promise.all([
-          supabase.from("patient_events").select("*").eq("patient_id", pt.id).order("created_at", { ascending: false }).limit(20),
-          supabase.from("lab_results").select("*").eq("patient_id", pt.id).order("recorded_at", { ascending: false }).limit(10),
-        ]);
-        setTimeline(tl ?? []);
-        setAllLabs(lb ?? []);
-      }
-      setLoading(false);
-    };
-    load();
-  }, [user]);
-
-  const riskColor = (level: string) =>
-    level === "high" ? "bg-destructive text-destructive-foreground" : level === "medium" ? "bg-warning text-warning-foreground" : "bg-success text-success-foreground";
-
+  const loading = loadingPatient;
   const latestLab = allLabs[0] ?? null;
   const prevLab = allLabs[1] ?? null;
-
-  const getTrend = (current: number | null, previous: number | null) => {
-    if (current == null || previous == null) return null;
-    if (current > previous) return "up";
-    if (current < previous) return "down";
-    return "same";
-  };
-
-  const TrendIcon = ({ trend }: { trend: string | null }) => {
-    if (trend === "up") return <TrendingUp className="h-4 w-4 text-destructive" />;
-    if (trend === "down") return <TrendingDown className="h-4 w-4 text-green-600" />;
-    if (trend === "same") return <Minus className="h-4 w-4 text-muted-foreground" />;
-    return null;
-  };
 
   return (
     <DashboardLayout>
@@ -63,7 +26,6 @@ export default function PatientHome() {
           <Card><CardContent className="py-12 text-center"><p className="text-muted-foreground">{t("home.noLinked")}</p></CardContent></Card>
         ) : (
           <>
-            {/* Patient Info Card */}
             <Card>
               <CardHeader><CardTitle className="text-lg flex items-center gap-2"><User className="h-5 w-5 text-primary" />{t("home.healthStatus")}</CardTitle></CardHeader>
               <CardContent className="space-y-3">
@@ -75,14 +37,13 @@ export default function PatientHome() {
                 {patient.transplant_date && (
                   <div className="flex items-center justify-between"><span className="text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" />Трансплантация</span><span className="font-medium">{new Date(patient.transplant_date).toLocaleDateString()}</span></div>
                 )}
-                <div className="flex items-center justify-between"><span className="text-muted-foreground">{t("home.riskLevel")}</span><Badge className={riskColor(patient.risk_level)}>{patient.risk_level.toUpperCase()}</Badge></div>
+                <div className="flex items-center justify-between"><span className="text-muted-foreground">{t("home.riskLevel")}</span><Badge className={riskColorClass(patient.risk_level)}>{patient.risk_level.toUpperCase()}</Badge></div>
                 {patient.risk_level === "high" && (
                   <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">{t("home.highRiskWarning")}</div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Latest Labs */}
             {latestLab && (
               <Card>
                 <CardHeader className="flex flex-row items-center gap-2"><FlaskConical className="h-5 w-5 text-primary" /><CardTitle className="text-lg">Охирги таҳлиллар</CardTitle></CardHeader>
@@ -110,7 +71,6 @@ export default function PatientHome() {
               </Card>
             )}
 
-            {/* Lab History */}
             {allLabs.length > 1 && (
               <Card>
                 <CardHeader><CardTitle className="text-lg">Таҳлиллар тарихи</CardTitle></CardHeader>
@@ -146,7 +106,6 @@ export default function PatientHome() {
               </Card>
             )}
 
-            {/* Timeline */}
             <Card>
               <CardHeader className="flex flex-row items-center gap-2"><Clock className="h-5 w-5 text-primary" /><CardTitle className="text-lg">{t("home.careTimeline")}</CardTitle></CardHeader>
               <CardContent>
@@ -173,13 +132,7 @@ export default function PatientHome() {
 
 function LabItemTrend({ label, value, prev }: { label: string; value: number | null; prev?: number | null }) {
   if (value == null) return null;
-  const getTrend = (current: number | null, previous: number | null) => {
-    if (current == null || previous == null) return null;
-    if (current > previous) return "up";
-    if (current < previous) return "down";
-    return "same";
-  };
-  const trend = getTrend(value, prev ?? null);
+  const trend = prev != null ? (value > prev ? "up" : value < prev ? "down" : "same") : null;
   return (
     <div className="rounded-lg border p-3 flex items-center justify-between">
       <div>

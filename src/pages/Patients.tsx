@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, UserPlus, Download, Users, AlertTriangle, Activity, Heart } from "lucide-react";
+import { Search, UserPlus, Users, AlertTriangle, Activity, Heart } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,41 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useLanguage } from "@/hooks/useLanguage";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-
-interface PatientRow {
-  id: string;
-  full_name: string;
-  organ_type: string;
-  risk_level: string;
-  gender: string | null;
-  date_of_birth: string | null;
-  transplant_date: string | null;
-  created_at: string;
-  dialysis_history: boolean | null;
-  return_dialysis_date: string | null;
-}
+import { useAllPatients } from "@/hooks/usePatients";
+import { riskColorClass, getAge } from "@/utils/risk";
 
 export default function Patients() {
   const { t } = useLanguage();
-  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [organFilter, setOrganFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
-  const [patients, setPatients] = useState<PatientRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!user) return;
-    const load = async () => {
-      const { data } = await supabase.from("patients").select("id, full_name, organ_type, risk_level, gender, date_of_birth, transplant_date, created_at, dialysis_history, return_dialysis_date");
-      setPatients(data ?? []);
-      setLoading(false);
-    };
-    load();
-  }, [user]);
+  const { data: patients = [], isLoading: loading } = useAllPatients();
 
   const filteredPatients = patients.filter((p) => {
     const matchesSearch = p.full_name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -52,15 +28,7 @@ export default function Patients() {
     return matchesSearch && matchesOrgan && matchesRisk;
   });
 
-  const getRiskBadge = (level: string) => {
-    const cls = level === "high" ? "bg-destructive text-destructive-foreground" : level === "medium" ? "bg-warning text-warning-foreground" : "bg-success text-success-foreground";
-    return <Badge className={cls}>{level.toUpperCase()}</Badge>;
-  };
-
-  const getAge = (dob: string | null) => {
-    if (!dob) return "—";
-    return Math.floor((Date.now() - new Date(dob).getTime()) / 31557600000);
-  };
+  const getRiskBadge = (level: string) => <Badge className={riskColorClass(level)}>{level.toUpperCase()}</Badge>;
 
   const stats = {
     total: patients.length,

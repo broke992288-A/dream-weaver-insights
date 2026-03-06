@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,31 +11,12 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { DateInputSeparate } from "@/components/DateInputSeparate";
-
-type OrganType = "liver" | "kidney";
-
-function calculateRisk(organ: OrganType, data: Record<string, any>): "low" | "medium" | "high" {
-  if (organ === "liver") {
-    const alt = parseFloat(data.alt) || 0;
-    const tac = parseFloat(data.tacrolimus_level) || 0;
-    const txNum = parseInt(data.transplant_number) || 1;
-    if (alt > 120) return "high";
-    if (tac < 5) return txNum >= 2 ? "high" : "medium";
-    if (txNum >= 2) return "medium";
-    return "low";
-  } else {
-    const cr = parseFloat(data.creatinine) || 0;
-    const egfr = parseFloat(data.egfr) || 999;
-    const dialysis = data.dialysis_history === "yes";
-    if (dialysis) return "high";
-    if (cr > 2.5) return "high";
-    if (egfr < 30) return "high";
-    if (egfr < 45) return "medium";
-    if (cr > 1.5) return "medium";
-    return "low";
-  }
-}
+import { DateInputSeparate } from "@/components/features/DateInputSeparate";
+import { insertPatient } from "@/services/patientService";
+import { insertLabResult } from "@/services/labService";
+import { insertEvents } from "@/services/eventService";
+import { calculateRisk } from "@/utils/risk";
+import type { OrganType } from "@/types/patient";
 
 export default function AddPatient() {
   const [step, setStep] = useState<1 | 2>(1);
@@ -63,7 +43,7 @@ export default function AddPatient() {
     setSaving(true);
     try {
       const riskLevel = calculateRisk(organ, form);
-      const { data: patient, error: pErr } = await supabase.from("patients").insert({
+      const patient = await insertPatient({
         full_name: form.full_name, date_of_birth: form.date_of_birth || null, gender: form.gender,
         organ_type: organ, risk_level: riskLevel, assigned_doctor_id: user.id,
         transplant_number: parseInt(form.transplant_number) || 1,
@@ -72,8 +52,7 @@ export default function AddPatient() {
         dialysis_history: organ === "kidney" ? form.dialysis_history === "yes" : false,
         return_dialysis_date: organ === "kidney" && form.dialysis_history === "yes" && form.return_dialysis_date ? form.return_dialysis_date : null,
         biopsy_result: form.biopsy_result || null,
-      }).select("id").single();
-      if (pErr) throw pErr;
+      });
 
       const labData: any = { patient_id: patient.id };
       if (organ === "liver") {
@@ -88,7 +67,7 @@ export default function AddPatient() {
         labData.proteinuria = parseFloat(form.proteinuria) || null;
         labData.potassium = parseFloat(form.potassium) || null;
       }
-      await supabase.from("lab_results").insert(labData);
+      await insertLabResult(labData);
 
       const txLabel = organ === "liver" ? "Liver" : "Kidney";
       const events: { patient_id: string; event_type: string; description: string; created_by: string }[] = [
@@ -97,7 +76,7 @@ export default function AddPatient() {
       if (organ === "kidney" && form.dialysis_history === "yes") {
         events.push({ patient_id: patient.id, event_type: "dialysis_recorded", description: "Return to dialysis recorded", created_by: user.id });
       }
-      await supabase.from("patient_events").insert(events);
+      await insertEvents(events);
 
       toast({ title: t("add.patientAdded"), description: `${form.full_name} — Risk: ${riskLevel.toUpperCase()}` });
       navigate("/doctor-dashboard");

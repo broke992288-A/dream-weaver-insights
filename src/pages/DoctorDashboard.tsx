@@ -1,7 +1,4 @@
-import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,33 +7,16 @@ import { Users, AlertTriangle, Activity, Plus, ShieldAlert } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-
-interface PatientRow { id: string; full_name: string; organ_type: string; risk_level: string; created_at: string; }
-interface LabRow { patient_id: string; tacrolimus_level: number | null; creatinine: number | null; }
+import { useDoctorPatientsWithLabs } from "@/hooks/usePatients";
+import { riskColorClass, daysSince } from "@/utils/risk";
 
 export default function DoctorDashboard() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const [patients, setPatients] = useState<PatientRow[]>([]);
-  const [labs, setLabs] = useState<Record<string, LabRow>>({});
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useDoctorPatientsWithLabs();
 
-  useEffect(() => {
-    if (!user) return;
-    const load = async () => {
-      const { data: pts } = await supabase.from("patients").select("id, full_name, organ_type, risk_level, created_at").eq("assigned_doctor_id", user.id);
-      setPatients(pts ?? []);
-      if (pts && pts.length > 0) {
-        const { data: labData } = await supabase.from("lab_results").select("patient_id, tacrolimus_level, creatinine").in("patient_id", pts.map((p) => p.id)).order("recorded_at", { ascending: false });
-        const labMap: Record<string, LabRow> = {};
-        labData?.forEach((l) => { if (!labMap[l.patient_id]) labMap[l.patient_id] = l; });
-        setLabs(labMap);
-      }
-      setLoading(false);
-    };
-    load();
-  }, [user]);
+  const patients = data?.patients ?? [];
+  const labs = data?.labs ?? {};
 
   const highRisk = patients.filter((p) => p.risk_level === "high");
   const mediumRisk = patients.filter((p) => p.risk_level === "medium");
@@ -46,11 +26,7 @@ export default function DoctorDashboard() {
     { name: "Low", value: patients.length - highRisk.length - mediumRisk.length, color: "hsl(142, 71%, 35%)" },
   ].filter((d) => d.value > 0);
 
-  const daysSince = (dateStr: string) => Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
-  const riskBadge = (level: string) => {
-    const cls = level === "high" ? "bg-destructive text-destructive-foreground" : level === "medium" ? "bg-warning text-warning-foreground" : "bg-success text-success-foreground";
-    return <Badge className={cls}>{level.toUpperCase()}</Badge>;
-  };
+  const riskBadge = (level: string) => <Badge className={riskColorClass(level)}>{level.toUpperCase()}</Badge>;
 
   const summaryCards = [
     { label: t("dashboard.totalPatients"), value: patients.length, icon: Users, color: "text-primary" },
