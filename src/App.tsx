@@ -104,6 +104,7 @@ const App = () => (
       </LanguageProvider>
     </TooltipProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
