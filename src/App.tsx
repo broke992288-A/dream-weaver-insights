@@ -14,6 +14,7 @@ import DoctorDashboard from "./pages/DoctorDashboard";
 import AddPatient from "./pages/AddPatient";
 import PatientDetail from "./pages/PatientDetail";
 import PatientHome from "./pages/PatientHome";
+import PatientProfile from "./pages/PatientProfile";
 import ResetPassword from "./pages/ResetPassword";
 import Compare from "./pages/Compare";
 import Analytics from "./pages/Analytics";
@@ -93,7 +94,7 @@ const App = () => (
               <Route path="/reports" element={<DoctorOrAdminRoute><Reports /></DoctorOrAdminRoute>} />
               <Route path="/alerts" element={<DoctorOrAdminRoute><Alerts /></DoctorOrAdminRoute>} />
               <Route path="/medications" element={<DoctorOrAdminRoute><Medications /></DoctorOrAdminRoute>} />
-              <Route path="/patient/home" element={<ProtectedRoute allowedRole="patient"><PatientHome /></ProtectedRoute>} />
+              <Route path="/patient/home" element={<ProtectedRoute allowedRole="patient"><PatientProfile /></ProtectedRoute>} />
               <Route path="/compare" element={<DoctorOrAdminRoute><Compare /></DoctorOrAdminRoute>} />
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="*" element={<NotFound />} />

@@ -16,49 +16,112 @@ export type Database = {
     Tables: {
       lab_results: {
         Row: {
+          albumin: number | null
+          alp: number | null
           alt: number | null
+          ammonia: number | null
           ast: number | null
+          calcium: number | null
           created_at: string
           creatinine: number | null
+          crp: number | null
+          cyclosporine: number | null
           direct_bilirubin: number | null
           egfr: number | null
+          esr: number | null
+          ggt: number | null
+          hb: number | null
           id: string
+          inr: number | null
+          ldh: number | null
+          magnesium: number | null
           patient_id: string
+          phosphorus: number | null
+          platelets: number | null
           potassium: number | null
           proteinuria: number | null
+          pti: number | null
           recorded_at: string
+          report_file_url: string | null
+          sodium: number | null
           tacrolimus_level: number | null
+          tlc: number | null
           total_bilirubin: number | null
+          total_protein: number | null
+          urea: number | null
+          uric_acid: number | null
         }
         Insert: {
+          albumin?: number | null
+          alp?: number | null
           alt?: number | null
+          ammonia?: number | null
           ast?: number | null
+          calcium?: number | null
           created_at?: string
           creatinine?: number | null
+          crp?: number | null
+          cyclosporine?: number | null
           direct_bilirubin?: number | null
           egfr?: number | null
+          esr?: number | null
+          ggt?: number | null
+          hb?: number | null
           id?: string
+          inr?: number | null
+          ldh?: number | null
+          magnesium?: number | null
           patient_id: string
+          phosphorus?: number | null
+          platelets?: number | null
           potassium?: number | null
           proteinuria?: number | null
+          pti?: number | null
           recorded_at?: string
+          report_file_url?: string | null
+          sodium?: number | null
           tacrolimus_level?: number | null
+          tlc?: number | null
           total_bilirubin?: number | null
+          total_protein?: number | null
+          urea?: number | null
+          uric_acid?: number | null
         }
         Update: {
+          albumin?: number | null
+          alp?: number | null
           alt?: number | null
+          ammonia?: number | null
           ast?: number | null
+          calcium?: number | null
           created_at?: string
           creatinine?: number | null
+          crp?: number | null
+          cyclosporine?: number | null
           direct_bilirubin?: number | null
           egfr?: number | null
+          esr?: number | null
+          ggt?: number | null
+          hb?: number | null
           id?: string
+          inr?: number | null
+          ldh?: number | null
+          magnesium?: number | null
           patient_id?: string
+          phosphorus?: number | null
+          platelets?: number | null
           potassium?: number | null
           proteinuria?: number | null
+          pti?: number | null
           recorded_at?: string
+          report_file_url?: string | null
+          sodium?: number | null
           tacrolimus_level?: number | null
+          tlc?: number | null
           total_bilirubin?: number | null
+          total_protein?: number | null
+          urea?: number | null
+          uric_acid?: number | null
         }
         Relationships: [
           {

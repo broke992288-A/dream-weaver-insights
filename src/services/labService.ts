@@ -28,18 +28,7 @@ export async function fetchLabsByPatientId(patientId: string, limit?: number) {
   return (data ?? []) as LabResult[];
 }
 
-export async function insertLabResult(labData: {
-  patient_id: string;
-  tacrolimus_level?: number | null;
-  alt?: number | null;
-  ast?: number | null;
-  total_bilirubin?: number | null;
-  direct_bilirubin?: number | null;
-  creatinine?: number | null;
-  egfr?: number | null;
-  proteinuria?: number | null;
-  potassium?: number | null;
-}) {
-  const { error } = await supabase.from("lab_results").insert(labData);
+export async function insertLabResult(labData: Record<string, any> & { patient_id: string }) {
+  const { error } = await supabase.from("lab_results").insert(labData as any);
   if (error) throw error;
 }

@@ -1,1 +1,4 @@
 project_id = "uszimflqyqmhlxbizcre"
+
+[functions.ocr-lab-report]
+verify_jwt = false
