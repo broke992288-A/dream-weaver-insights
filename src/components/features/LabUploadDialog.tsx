@@ -92,8 +92,11 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
   const processFile = async (file: File) => {
     setStep("processing");
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-      const path = `${patientId}/${Date.now()}.${ext}`;
+      const path = `${user.id}/${Date.now()}.${ext}`;
       const { error: uploadErr } = await supabase.storage.from("lab_reports").upload(path, file);
       if (uploadErr) throw uploadErr;
 
