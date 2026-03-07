@@ -3,13 +3,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Camera, Upload, Loader2, CheckCircle2, Edit3, FileText, AlertTriangle } from "lucide-react";
+import { Camera, Upload, Loader2, CheckCircle2, Edit3, FileText, AlertTriangle, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { insertLabResult } from "@/services/labService";
 import { insertEvent } from "@/services/eventService";
 import { logAudit } from "@/services/auditService";
 import { preprocessLabImage } from "@/utils/imagePreprocess";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const LAB_FIELDS = [
   { key: "hb", label: "HB (Hemoglobin)", unit: "g/dL" },
@@ -50,6 +52,13 @@ interface Props {
 
 type Step = "upload" | "processing" | "confirm";
 
+interface DateGroup {
+  date: string;
+  values: Record<string, string>;
+  confidence: Record<string, number>;
+  originalText: Record<string, string>;
+}
+
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   if (confidence >= 95) return null;
   if (confidence >= 80) {
@@ -67,27 +76,123 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
   );
 }
 
+function formatDate(dateStr: string): string {
+  if (dateStr === "unknown") return "Сана аниқланмади";
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("uz-UZ", { year: "numeric", month: "long", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+function DateGroupValues({
+  group,
+  onValueChange,
+}: {
+  group: DateGroup;
+  onValueChange: (key: string, value: string) => void;
+}) {
+  const filledCount = LAB_FIELDS.filter((f) => group.values[f.key] && group.values[f.key] !== "").length;
+  const lowConfFields = LAB_FIELDS.filter(
+    (f) => group.values[f.key] && group.confidence[f.key] != null && group.confidence[f.key] < 80
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 p-3">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-5 w-5 text-primary" />
+          <span className="text-sm font-medium">{filledCount} қиймат топилди</span>
+        </div>
+        {lowConfFields.length > 0 && (
+          <span className="flex items-center gap-1 text-xs font-medium text-destructive">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {lowConfFields.length} текшириш керак
+          </span>
+        )}
+      </div>
+
+      {lowConfFields.length > 0 && (
+        <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+          <p className="text-xs font-medium text-destructive mb-1">
+            ⚠ Паст ишончлилик — текширинг:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {lowConfFields.map((f) => (
+              <span key={f.key} className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
+                {f.label}: {group.values[f.key]} ({group.confidence[f.key]}%)
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {LAB_FIELDS.map((field) => {
+          const hasValue = group.values[field.key] && group.values[field.key] !== "";
+          const conf = group.confidence[field.key] ?? 100;
+          const isLowConf = hasValue && conf < 80;
+          const origText = group.originalText[field.key];
+
+          return (
+            <div
+              key={field.key}
+              className={`space-y-1 rounded-lg border p-2.5 ${
+                isLowConf
+                  ? "border-destructive/40 bg-destructive/5 ring-1 ring-destructive/20"
+                  : hasValue
+                  ? "border-primary/30 bg-primary/5"
+                  : ""
+              }`}
+            >
+              <Label className="text-xs flex items-center justify-between">
+                <span className="flex items-center">
+                  {field.label}
+                  {hasValue && <ConfidenceBadge confidence={conf} />}
+                </span>
+                <span className="text-muted-foreground">{field.unit}</span>
+              </Label>
+              {origText && origText !== group.values[field.key] && (
+                <p className="text-[10px] text-muted-foreground truncate" title={origText}>
+                  Original: "{origText}"
+                </p>
+              )}
+              <Input
+                type="number"
+                step="any"
+                value={group.values[field.key] ?? ""}
+                onChange={(e) => onValueChange(field.key, e.target.value)}
+                className={`h-8 text-sm ${isLowConf ? "border-destructive/40" : ""}`}
+                placeholder="—"
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("upload");
   const [saving, setSaving] = useState(false);
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [confidenceMap, setConfidenceMap] = useState<Record<string, number>>({});
-  const [originalTextMap, setOriginalTextMap] = useState<Record<string, string>>({});
+  const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
   const [reportType, setReportType] = useState<string>("");
   const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("0");
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const reset = () => {
     setStep("upload");
-    setValues({});
-    setConfidenceMap({});
-    setOriginalTextMap({});
+    setDateGroups([]);
     setReportType("");
     setReportUrl(null);
     setSaving(false);
+    setActiveTab("0");
   };
 
   const processFile = async (file: File) => {
@@ -96,10 +201,8 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Preprocess image: auto-crop, denoise, contrast, sharpen
       const { base64, file: processedFile, fileType } = await preprocessLabImage(file);
 
-      // Upload the processed file to storage
       const ext = processedFile.name.split(".").pop()?.toLowerCase() ?? "jpg";
       const path = `${user.id}/${Date.now()}.${ext}`;
       const { error: uploadErr } = await supabase.storage.from("lab_reports").upload(path, processedFile);
@@ -108,7 +211,6 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
       const { data: urlData } = await supabase.storage.from("lab_reports").createSignedUrl(path, 60 * 60 * 24);
       setReportUrl(urlData?.signedUrl ?? null);
 
-      // Send preprocessed image to OCR
       const { data: ocrData, error: ocrErr } = await supabase.functions.invoke("ocr-lab-report", {
         body: { imageBase64: base64, fileType },
       });
@@ -116,36 +218,67 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
       if (ocrErr) throw ocrErr;
       if (ocrData?.error) throw new Error(ocrData.error);
 
-      const extracted = ocrData?.data ?? {};
-      const confidence = ocrData?.confidence ?? {};
-      const originalText = ocrData?.originalText ?? {};
+      // Handle multi-date response
+      let groups: DateGroup[] = [];
 
-      const newValues: Record<string, string> = {};
-      for (const field of LAB_FIELDS) {
-        const v = extracted[field.key];
-        newValues[field.key] = v != null ? String(v) : "";
+      if (ocrData?.multiDate && ocrData?.dateGroups?.length > 0) {
+        groups = ocrData.dateGroups.map((g: any) => {
+          const values: Record<string, string> = {};
+          for (const field of LAB_FIELDS) {
+            const v = g.data?.[field.key];
+            values[field.key] = v != null ? String(v) : "";
+          }
+          return {
+            date: g.date ?? "unknown",
+            values,
+            confidence: g.confidence ?? {},
+            originalText: g.originalText ?? {},
+          };
+        });
+      } else {
+        // Legacy single-date fallback
+        const extracted = ocrData?.data ?? {};
+        const values: Record<string, string> = {};
+        for (const field of LAB_FIELDS) {
+          const v = extracted[field.key];
+          values[field.key] = v != null ? String(v) : "";
+        }
+        groups = [{
+          date: "unknown",
+          values,
+          confidence: ocrData?.confidence ?? {},
+          originalText: ocrData?.originalText ?? {},
+        }];
       }
-      setValues(newValues);
-      setConfidenceMap(confidence);
-      setOriginalTextMap(originalText);
+
+      setDateGroups(groups);
       setReportType(ocrData?.reportType ?? "");
 
-      const lowConfCount = LAB_FIELDS.filter(
-        (f) => newValues[f.key] && confidence[f.key] != null && confidence[f.key] < 80
-      ).length;
+      const totalLowConf = groups.reduce((sum, g) => {
+        return sum + LAB_FIELDS.filter(
+          (f) => g.values[f.key] && g.confidence[f.key] != null && g.confidence[f.key] < 80
+        ).length;
+      }, 0);
 
-      if (lowConfCount > 0) {
+      if (totalLowConf > 0) {
         toast({
-          title: `${lowConfCount} value(s) need verification`,
-          description: "Values with low OCR confidence are highlighted. Please review them.",
+          title: `${totalLowConf} та қиймат текширишни талаб қилади`,
+          description: "Паст ишончлиликдаги қийматлар ажратиб кўрсатилган.",
           variant: "destructive",
+        });
+      }
+
+      if (groups.length > 1) {
+        toast({
+          title: `${groups.length} та сана аниқланди`,
+          description: "Ҳар бир сана учун натижалар алоҳида сақланади.",
         });
       }
 
       setStep("confirm");
     } catch (err: any) {
       console.error("Upload/OCR error:", err);
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Хатолик", description: err.message, variant: "destructive" });
       setStep("upload");
     }
   };
@@ -155,33 +288,67 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
     if (file) processFile(file);
   };
 
+  const updateGroupValue = (groupIndex: number, key: string, value: string) => {
+    setDateGroups((prev) =>
+      prev.map((g, i) =>
+        i === groupIndex ? { ...g, values: { ...g.values, [key]: value } } : g
+      )
+    );
+  };
+
+  const updateGroupDate = (groupIndex: number, newDate: string) => {
+    setDateGroups((prev) =>
+      prev.map((g, i) =>
+        i === groupIndex ? { ...g, date: newDate } : g
+      )
+    );
+  };
+
   const handleConfirm = async () => {
     setSaving(true);
     try {
-      const labData: Record<string, any> = { patient_id: patientId };
-      if (reportUrl) labData.report_file_url = reportUrl;
-      for (const field of LAB_FIELDS) {
-        const v = parseFloat(values[field.key]);
-        labData[field.key] = isNaN(v) ? null : v;
+      let totalFilled = 0;
+
+      for (const group of dateGroups) {
+        const labData: Record<string, any> = { patient_id: patientId };
+        if (reportUrl) labData.report_file_url = reportUrl;
+
+        // Set recorded_at based on detected date
+        if (group.date && group.date !== "unknown") {
+          labData.recorded_at = new Date(group.date).toISOString();
+        }
+
+        let filledCount = 0;
+        for (const field of LAB_FIELDS) {
+          const v = parseFloat(group.values[field.key]);
+          labData[field.key] = isNaN(v) ? null : v;
+          if (!isNaN(v)) filledCount++;
+        }
+
+        // Only save if at least one value is filled
+        if (filledCount > 0) {
+          await insertLabResult(labData as Record<string, any> & { patient_id: string });
+          totalFilled += filledCount;
+        }
       }
-      await insertLabResult(labData as Record<string, any> & { patient_id: string });
-      await insertEvent({ patient_id: patientId, event_type: "lab_uploaded", description: "Lab report uploaded via OCR" });
-      const filledCount = LAB_FIELDS.filter((f) => values[f.key] && values[f.key] !== "").length;
-      logAudit({ action: "lab_upload", entityType: "patient", entityId: patientId, metadata: { filledCount } });
-      toast({ title: "Lab results saved successfully" });
+
+      await insertEvent({ patient_id: patientId, event_type: "lab_uploaded", description: `Lab report uploaded via OCR (${dateGroups.length} date(s))` });
+      logAudit({ action: "lab_upload", entityType: "patient", entityId: patientId, metadata: { dateCount: dateGroups.length, totalFilled } });
+      
+      toast({ title: `${dateGroups.length} та сана учун натижалар сақланди` });
       reset();
       setOpen(false);
       onLabAdded();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Хатолик", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
-  const filledCount = LAB_FIELDS.filter((f) => values[f.key] && values[f.key] !== "").length;
-  const lowConfFields = LAB_FIELDS.filter(
-    (f) => values[f.key] && confidenceMap[f.key] != null && confidenceMap[f.key] < 80
+  const totalFilled = dateGroups.reduce(
+    (sum, g) => sum + LAB_FIELDS.filter((f) => g.values[f.key] && g.values[f.key] !== "").length,
+    0
   );
 
   return (
@@ -195,16 +362,16 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            {step === "upload" && "Upload Laboratory Report"}
-            {step === "processing" && "Processing Report..."}
-            {step === "confirm" && "Confirm Extracted Values"}
+            {step === "upload" && "Лаборатория ҳисоботини юклаш"}
+            {step === "processing" && "Ҳисобот қайта ишланмоқда..."}
+            {step === "confirm" && "Натижаларни тасдиқланг"}
           </DialogTitle>
         </DialogHeader>
 
         {step === "upload" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Upload a photo or file of your lab report. Supported formats: JPEG, JPG, PDF
+              Лаб ҳисоботингизнинг расми ёки файлини юкланг. Бир файлда бир нечта санадаги натижалар бўлса, ҳар бири алоҳида сақланади.
             </p>
             <div className="grid grid-cols-2 gap-4">
               <Button
@@ -213,7 +380,7 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
                 onClick={() => cameraRef.current?.click()}
               >
                 <Camera className="h-8 w-8 text-primary" />
-                <span className="font-medium">Take Photo</span>
+                <span className="font-medium">Расм олиш</span>
               </Button>
               <Button
                 variant="outline"
@@ -221,7 +388,7 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
                 onClick={() => fileRef.current?.click()}
               >
                 <Upload className="h-8 w-8 text-primary" />
-                <span className="font-medium">Upload File</span>
+                <span className="font-medium">Файл юклаш</span>
               </Button>
             </div>
             <input ref={cameraRef} type="file" accept="image/jpeg,image/jpg,image/png" capture="environment" className="hidden" onChange={handleFileChange} />
@@ -232,97 +399,106 @@ export default function LabUploadDialog({ patientId, onLabAdded }: Props) {
         {step === "processing" && (
           <div className="flex flex-col items-center justify-center py-12 gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-muted-foreground">Extracting lab values with AI...</p>
-            <p className="text-xs text-muted-foreground">Detecting layout, normalizing test names across languages</p>
+            <p className="text-muted-foreground">AI ёрдамида лаб қийматлари ажратилмоқда...</p>
+            <p className="text-xs text-muted-foreground">Саналар, макет ва тест номлари аниқланмоқда</p>
           </div>
         )}
 
         {step === "confirm" && (
           <div className="space-y-4">
-            {/* Summary bar */}
-            <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 p-3">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-primary" />
-                <span className="text-sm font-medium">{filledCount} values extracted</span>
-                {reportType && (
-                  <span className="text-xs text-muted-foreground">• {reportType} layout</span>
-                )}
-              </div>
-              {lowConfFields.length > 0 && (
-                <span className="flex items-center gap-1 text-xs font-medium text-destructive">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  {lowConfFields.length} need review
+            {/* Multi-date summary */}
+            {dateGroups.length > 1 && (
+              <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <Calendar className="h-5 w-5 text-primary" />
+                <span className="text-sm font-medium">
+                  {dateGroups.length} та алоҳида сана аниқланди — ҳар бири алоҳида лаб натижаси сифатида сақланади
                 </span>
-              )}
-            </div>
-
-            {/* Low confidence warning */}
-            {lowConfFields.length > 0 && (
-              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
-                <p className="text-xs font-medium text-destructive mb-1">
-                  ⚠ Low confidence values — please verify:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {lowConfFields.map((f) => (
-                    <span key={f.key} className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
-                      {f.label}: {values[f.key]} ({confidenceMap[f.key]}%)
-                    </span>
-                  ))}
-                </div>
               </div>
             )}
 
-            {/* Values grid */}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {LAB_FIELDS.map((field) => {
-                const hasValue = values[field.key] && values[field.key] !== "";
-                const conf = confidenceMap[field.key] ?? 100;
-                const isLowConf = hasValue && conf < 80;
-                const origText = originalTextMap[field.key];
-
-                return (
-                  <div
-                    key={field.key}
-                    className={`space-y-1 rounded-lg border p-2.5 ${
-                      isLowConf
-                        ? "border-destructive/40 bg-destructive/5 ring-1 ring-destructive/20"
-                        : hasValue
-                        ? "border-primary/30 bg-primary/5"
-                        : ""
-                    }`}
-                  >
-                    <Label className="text-xs flex items-center justify-between">
-                      <span className="flex items-center">
-                        {field.label}
-                        {hasValue && <ConfidenceBadge confidence={conf} />}
-                      </span>
-                      <span className="text-muted-foreground">{field.unit}</span>
-                    </Label>
-                    {origText && origText !== values[field.key] && (
-                      <p className="text-[10px] text-muted-foreground truncate" title={origText}>
-                        Original: "{origText}"
-                      </p>
-                    )}
+            {dateGroups.length > 1 ? (
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="w-full flex-wrap h-auto gap-1 p-1">
+                  {dateGroups.map((group, i) => {
+                    const filled = LAB_FIELDS.filter((f) => group.values[f.key] && group.values[f.key] !== "").length;
+                    return (
+                      <TabsTrigger key={i} value={String(i)} className="gap-1.5 text-xs">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {formatDate(group.date)}
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {filled}
+                        </Badge>
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+                {dateGroups.map((group, i) => (
+                  <TabsContent key={i} value={String(i)} className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground">Сана:</Label>
+                      <Input
+                        type="date"
+                        value={group.date === "unknown" ? "" : group.date}
+                        onChange={(e) => updateGroupDate(i, e.target.value)}
+                        className="h-8 w-48 text-sm"
+                      />
+                      {group.date === "unknown" && (
+                        <span className="text-xs text-destructive flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Санани қўлда киритинг
+                        </span>
+                      )}
+                    </div>
+                    <DateGroupValues
+                      group={group}
+                      onValueChange={(key, value) => updateGroupValue(i, key, value)}
+                    />
+                  </TabsContent>
+                ))}
+              </Tabs>
+            ) : (
+              <>
+                {dateGroups[0]?.date !== "unknown" && (
+                  <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <span className="text-sm">Сана: {formatDate(dateGroups[0]?.date)}</span>
                     <Input
-                      type="number"
-                      step="any"
-                      value={values[field.key] ?? ""}
-                      onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                      className={`h-8 text-sm ${isLowConf ? "border-destructive/40" : ""}`}
-                      placeholder="—"
+                      type="date"
+                      value={dateGroups[0]?.date === "unknown" ? "" : dateGroups[0]?.date}
+                      onChange={(e) => updateGroupDate(0, e.target.value)}
+                      className="h-7 w-40 text-xs ml-auto"
                     />
                   </div>
-                );
-              })}
-            </div>
+                )}
+                {dateGroups[0]?.date === "unknown" && (
+                  <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <span className="text-sm text-destructive">Сана аниқланмади — қўлда киритинг:</span>
+                    <Input
+                      type="date"
+                      value=""
+                      onChange={(e) => updateGroupDate(0, e.target.value)}
+                      className="h-7 w-40 text-xs ml-auto"
+                    />
+                  </div>
+                )}
+                {dateGroups[0] && (
+                  <DateGroupValues
+                    group={dateGroups[0]}
+                    onValueChange={(key, value) => updateGroupValue(0, key, value)}
+                  />
+                )}
+              </>
+            )}
 
             <div className="flex gap-2 pt-2">
               <Button onClick={handleConfirm} disabled={saving} className="flex-1 gap-2">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Confirm Results
+                {dateGroups.length > 1
+                  ? `${dateGroups.length} та натижани сақлаш`
+                  : "Натижаларни тасдиқлаш"}
               </Button>
               <Button variant="outline" onClick={() => setStep("upload")} className="gap-2">
-                <Edit3 className="h-4 w-4" /> Re-upload
+                <Edit3 className="h-4 w-4" /> Қайта юклаш
               </Button>
             </div>
           </div>
