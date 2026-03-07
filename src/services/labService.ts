@@ -29,6 +29,11 @@ export async function fetchLabsByPatientId(patientId: string, limit?: number) {
 }
 
 export async function insertLabResult(labData: Record<string, any> & { patient_id: string }) {
-  const { error } = await supabase.from("lab_results").insert(labData as any);
+  const { data, error } = await supabase
+    .from("lab_results")
+    .insert(labData as any)
+    .select("*")
+    .single();
   if (error) throw error;
+  return data as LabResult;
 }

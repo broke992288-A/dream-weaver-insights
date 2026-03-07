@@ -12,7 +12,6 @@ import { insertEvent } from "@/services/eventService";
 import { logAudit } from "@/services/auditService";
 import { computeRiskScore, insertRiskSnapshot } from "@/services/riskSnapshotService";
 import { insertPatientAlert } from "@/services/patientAlertService";
-import { updatePatient } from "@/services/patientService";
 import { preprocessLabImage } from "@/utils/imagePreprocess";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -345,9 +344,6 @@ export default function LabUploadDialog({ patientId, organType, patientData, onL
       const mergedGroups = Array.from(mergedMap.values());
 
       let totalFilled = 0;
-      let lastRiskLevel = "";
-      let lastRiskScore = 0;
-      let lastFlags: string[] = [];
 
       for (const group of mergedGroups) {
         const labData: Record<string, any> = { patient_id: patientId };
@@ -365,25 +361,17 @@ export default function LabUploadDialog({ patientId, organType, patientData, onL
         }
 
         if (filledCount > 0) {
-          await insertLabResult(labData as Record<string, any> & { patient_id: string });
+          const savedLab = await insertLabResult(labData as Record<string, any> & { patient_id: string });
           totalFilled += filledCount;
 
           // --- Compute risk score for each saved lab ---
           if (organType) {
             try {
-              const fakeLabResult = {
-                ...labData,
-                id: "",
-                recorded_at: labData.recorded_at ?? new Date().toISOString(),
-                created_at: new Date().toISOString(),
-              } as any;
-              const { score, level, flags } = computeRiskScore(organType, fakeLabResult, patientData ?? {});
-              lastRiskLevel = level;
-              lastRiskScore = score;
-              lastFlags = flags;
+              const { score, level, flags } = computeRiskScore(organType, savedLab as any, patientData ?? {});
 
               const snapshot = await insertRiskSnapshot({
                 patient_id: patientId,
+                lab_result_id: savedLab.id,
                 score,
                 risk_level: level,
                 creatinine: labData.creatinine ?? null,
@@ -419,14 +407,6 @@ export default function LabUploadDialog({ patientId, organType, patientData, onL
         }
       }
 
-      // Update patient risk level with the latest computed risk
-      if (lastRiskLevel && organType) {
-        try {
-          await updatePatient(patientId, { risk_level: lastRiskLevel });
-        } catch (e) {
-          console.error("Failed to update patient risk level:", e);
-        }
-      }
 
       await insertEvent({ patient_id: patientId, event_type: "lab_uploaded", description: `Lab report uploaded via OCR (${mergedGroups.length} date(s))` });
       logAudit({ action: "lab_upload", entityType: "patient", entityId: patientId, metadata: { dateCount: mergedGroups.length, totalFilled } });

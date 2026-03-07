@@ -28,6 +28,8 @@ export function usePatientDetail(patientId: string | undefined) {
     queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
     queryClient.invalidateQueries({ queryKey: ["patient-labs", patientId] });
     queryClient.invalidateQueries({ queryKey: ["patient-events", patientId] });
+    queryClient.invalidateQueries({ queryKey: ["risk-snapshots", patientId] });
+    queryClient.invalidateQueries({ queryKey: ["risk-snapshot-latest", patientId] });
   };
 
   return {

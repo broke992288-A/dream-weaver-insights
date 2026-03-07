@@ -10,7 +10,6 @@ import { insertLabResult } from "@/services/labService";
 import { insertEvent } from "@/services/eventService";
 import { computeRiskScore, insertRiskSnapshot } from "@/services/riskSnapshotService";
 import { insertPatientAlert } from "@/services/patientAlertService";
-import { updatePatient } from "@/services/patientService";
 
 interface AddLabDialogProps {
   patientId: string;
@@ -47,14 +46,14 @@ export default function AddLabDialog({ patientId, organType, onLabAdded, patient
         labData.proteinuria = parseFloat(form.proteinuria) || null;
         labData.potassium = parseFloat(form.potassium) || null;
       }
-      await insertLabResult(labData);
+      const savedLab = await insertLabResult(labData);
 
       // Compute risk score from fresh lab data
       try {
-        const fakeLabResult = { ...labData, id: "", recorded_at: new Date().toISOString(), created_at: new Date().toISOString() } as any;
-        const { score, level, flags } = computeRiskScore(organType, fakeLabResult, patientData ?? {});
+        const { score, level, flags } = computeRiskScore(organType, savedLab as any, patientData ?? {});
         const snapshot = await insertRiskSnapshot({
           patient_id: patientId,
+          lab_result_id: savedLab.id,
           score,
           risk_level: level,
           creatinine: labData.creatinine ?? null,
@@ -64,9 +63,6 @@ export default function AddLabDialog({ patientId, organType, onLabAdded, patient
           tacrolimus_level: labData.tacrolimus_level ?? null,
           details: { flags },
         });
-
-        // Update patient risk level
-        await updatePatient(patientId, { risk_level: level });
 
         // Create alert if risk is high or medium
         if (level === "high") {
