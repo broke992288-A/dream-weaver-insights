@@ -28,12 +28,15 @@ export async function fetchLabsByPatientId(patientId: string, limit?: number) {
   return (data ?? []) as LabResult[];
 }
 
-export async function insertLabResult(labData: Record<string, any> & { patient_id: string }) {
-  const { data, error } = await supabase
-    .from("lab_results")
-    .insert(labData as any)
-    .select("*")
-    .single();
+export async function insertLabResult(labData: Record<string, any>) {
+  const { data, error } = await supabase.functions.invoke(
+    "ocr-lab-report",
+    {
+      body: labData
+    }
+  );
+
   if (error) throw error;
-  return data as LabResult;
+
+  return data;
 }
