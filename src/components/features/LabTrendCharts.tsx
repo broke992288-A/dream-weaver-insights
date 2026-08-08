@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,6 +20,7 @@ import { LazyMount } from "./LazyMount";
 import { cn } from "@/lib/utils";
 import type { LabResult } from "@/types/patient";
 import { REFERENCE_RANGES } from "./LabResultsTable";
+import { fetchClinicalThresholds, type ClinicalThreshold } from "@/services/clinicalThresholdService";
 
 /** Cap data points fed to the chart to keep render cost bounded. */
 const MAX_CHART_POINTS = 30;
@@ -38,8 +40,20 @@ const CHART_MARKERS: { key: ChartableKey; color: string }[] = [
   { key: "urea", color: "hsl(239, 84%, 67%)" },
 ];
 
+/** Map chart marker keys to clinical_thresholds.parameter names. */
+const THRESHOLD_PARAM: Record<ChartableKey, string> = {
+  creatinine: "creatinine",
+  alt: "alt",
+  ast: "ast",
+  total_bilirubin: "total_bilirubin",
+  tacrolimus_level: "tacrolimus",
+  potassium: "potassium",
+  urea: "urea",
+};
+
 interface Props {
   labs: LabResult[];
+  organType?: string | null;
 }
 
 interface TooltipPayloadEntry {
@@ -88,9 +102,24 @@ function CustomTooltip({ active, payload, unit, color, ref, t }: CustomTooltipPr
   );
 }
 
-function LabTrendCharts({ labs }: Props) {
+function LabTrendCharts({ labs, organType }: Props) {
   const { t } = useLanguage();
   const isMobile = useIsMobile();
+
+  const { data: thresholds } = useQuery<ClinicalThreshold[]>({
+    queryKey: ["clinical-thresholds"],
+    queryFn: fetchClinicalThresholds,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const thresholdByParam = useMemo(() => {
+    const map = new Map<string, ClinicalThreshold>();
+    for (const th of thresholds ?? []) {
+      if (organType && th.organ_type !== organType) continue;
+      map.set(th.parameter, th);
+    }
+    return map;
+  }, [thresholds, organType]);
 
   const sortedLabs = useMemo(
     () =>
@@ -112,6 +141,12 @@ function LabTrendCharts({ labs }: Props) {
     <div className="grid gap-4 md:grid-cols-2">
       {charts.map(({ key, color }) => {
         const ref = REFERENCE_RANGES[key];
+        const th = thresholdByParam.get(THRESHOLD_PARAM[key]) ?? null;
+        const guidelineLabel = th ? `${th.guideline_source} ${th.guideline_year}` : null;
+        const normalRange =
+          th && (th.normal_min != null || th.normal_max != null)
+            ? `${th.normal_min ?? "—"}–${th.normal_max ?? "—"} ${th.unit}`
+            : null;
         const allPoints = sortedLabs
           .filter((l) => l[key] != null)
           .map((l) => ({
@@ -182,6 +217,20 @@ function LabTrendCharts({ labs }: Props) {
                       {ref ? `(${ref.unit})` : ""}
                     </span>
                   </CardTitle>
+                  {(guidelineLabel || normalRange) && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] leading-none">
+                      {guidelineLabel && (
+                        <span className="rounded-sm border border-border/60 bg-muted/50 px-1.5 py-0.5 font-medium text-muted-foreground">
+                          {guidelineLabel}
+                        </span>
+                      )}
+                      {normalRange && (
+                        <span className="text-muted-foreground tabular-nums">
+                          {t("lab.normal")}: {normalRange}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold tabular-nums" style={{ color }}>
                       {latest.toFixed(2)}
